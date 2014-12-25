@@ -1,0 +1,197 @@
+#! /bin/bash
+# project manager script
+
+language=
+project_name=
+unique_name=
+project_location=
+
+usage(){
+    echo "usage: mgr [[-n language project_name] | [-a language project_name] | [-g | -g project_name] | [-s # | -s # language project_name] | [-l | -l new_language] | [-h]]"
+}
+
+add_project(){
+    language=$1
+    project_name=$2
+    unique_name=$1$2
+    project_location=~"/code/$language/projects/$project_name"
+    if [ "$(eval echo \$$unique_name)" = "" ]; then 
+        echo "$unique_name=$project_location" >> ~/code/.projects
+        echo "project $project_name added to project list"
+    else
+        echo "$project_name already exists in ~/code/.projects"
+        echo "  if this is not the case exit bash and run mgr -a again"
+    fi
+}
+    
+new_project(){
+    language=$1
+    project_name=$2
+    unique_name=$1$2
+    project_location=~"/code/$language/projects/$project_name" 
+    if [ "$(eval echo \$$unique_name)" = "" ]; then 
+        echo "$unique_name=$project_location" >> ~/code/.projects
+        echo "project $project_name added to project list"
+        mkdir ~/code/$language/projects/$project_name
+        echo "  directory ~/code/$language/projects/$project_name created"
+        source ~/code/.$language
+        echo "  current contents of ~/code/$language/projects/$project_name"
+        echo "  "$(ls ~/code/$language/projects/$project_name) 
+    else
+        echo "$project_name already exists in ~/code/.projects"
+        echo "  if this is not the case exit bash and run mgr -a again"
+    fi
+}
+   
+new_language(){
+    language=$1
+    for item in ${languages[*]}; do
+        if [ "$item" = "$language" ]; then
+            echo "$language already available"
+            return
+        fi   
+    done  
+    sed -i "s/)/ $language)/" ~/code/.languages
+    echo "$language added to language list"
+    if [ ! -f ~/code/.$language ]; then
+        touch ~/code/.$language
+        echo "#script executed when a new $language project is created" > ~/code/.$language
+        echo "  file ~/code/.$language created, edit to configure new project process"
+    fi
+    if [ ! -d ~/code/$language ]; then
+        mkdir $language
+        echo "  directory ~/code/$language created"
+    fi
+    if [ ! -d ~/code/$language/projects ]; then
+        mkdir ~/code/$language/projects
+        echo  "  directory ~/code/$language/projects created"
+    fi
+}
+
+list_languages(){
+    echo "currently used langauges"
+    for item in ${languages[*]}; do
+        echo "   $item"
+    done
+}
+
+go_to(){
+    language=$1
+    project_name=$2
+    unique_name=$1$2
+    eval project_location=\$$unique_name
+     
+    if [ "$project_location" = "" ]; then
+        echo "project $project_name not found"
+        echo "  -n option to create new project"
+        echo "  -a option to add existing project to manager"
+    else
+        cd $project_location
+    fi
+}
+
+speed_dial(){
+    number=$1
+    l=$(eval echo \$l$number)
+    p=$(eval echo \$p$number)
+    if [ ! "$l" = "" ] && [ ! "$p" = "" ]; then
+        go_to $l $p
+    fi
+}
+
+set_speed_dial(){
+    number=$1
+    language=$2
+    project_name=$3
+    eval $(echo l$number)=$language
+    eval $(echo p$number)=$project_name
+    rm ~/code/.speed_dial
+    touch ~/code/.speed_dial
+    for (( i = 1; i < 10; i++ )); do
+       echo "l$i=$(eval echo \$l$i)" >> ~/code/.speed_dial
+       echo "p$i=$(eval echo \$p$i)" >> ~/code/.speed_dial
+    done
+}
+
+mgr(){
+
+if [ -d ~/code ]; then
+
+    if [ -f ~/code/.projects ]; then
+        source ~/code/.projects
+    else
+        touch ~/code/.projects
+        echo "#file for tracking projects and their file paths" >> ~/code/.projects
+    fi
+
+    if [ -f ~/code/.languages ]; then
+        source ~/code/.languages
+    else
+        touch ~/code/.languages
+        echo "#file for tracking languages in use" >> ~/code/.languages
+        echo "languages=()" >> ~/code/.languages
+    fi
+
+    if [ -f ~/code/.speed_dial ]; then
+        source ~/code/.speed_dial
+    else
+        touch ~/code/.speed_dial
+        echo "#file for tracking speed-dial numbers" >> ~/code/.projects
+    fi
+
+    if [ $# -eq 0 ]; then
+        echo "mgr -h for usage information"
+    else
+        case $1 in 
+            -n | --new-project )    shift
+                                    if [ $# -ne 2 ]; then
+                                        usage
+                                    else
+                                        new_project $1 $2
+                                    fi
+                                    ;;
+            -h | --help )           usage
+                                    ;;
+            -g | --go )             shift
+                                    if [ $# -eq 0 ]; then
+                                        cd ~/code
+                                    elif [ $# -eq 2 ]; then
+                                        go_to $1 $2
+                                    else
+                                        usage
+                                    fi
+                                    ;;
+ 
+            -a | --add-project)     shift
+                                    if [ $# -ne 2 ]; then
+                                        usage
+                                    else
+                                        add_project $1 $2
+                                    fi
+                                    ;;
+            -l | --language)        shift
+                                    if [ $# -eq 0 ]; then
+                                        list_languages
+                                    elif [ $# -eq 1 ]; then
+                                        new_language $1
+                                    fi
+                                    ;;
+            -s | --speed-dial)      shift
+                                    if [ $# -eq 3 ]; then
+                                        set_speed_dial $1 $2 $3
+                                    elif [ $# -eq 1 ]; then
+                                        speed_dial $1
+                                    else
+                                        usage
+                                    fi
+                                    ;;
+            * )                     usage
+                                    ;;
+        esac
+    fi
+
+else
+    echo "no /code directory in home folder"
+fi
+
+}
